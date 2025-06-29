@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>픽셀 스파이더 카드놀이</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* 기본 팔레트 (JS에서 동적으로 오버라이드됨) */
+            --body-bg-color: #0d2f1c;
+            --card-back-color: #4a4a8a;
+            --card-pattern-color: #3a3a7a;
+            --card-face-up-bg: #e0e0e0;
+            --card-face-up-text: #111;
+        }
+
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: var(--body-bg-color); /* CSS 변수 사용 */
+            color: #f0f0f0;
+            user-select: none;
+            transition: background-color 0.5s ease; /* 부드러운 색상 전환 */
+        }
+        .game-board {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 10px;
+            padding: 20px;
+            max-width: 1200px;
+            margin: auto;
+        }
+        .tableau-pile {
+            position: relative;
+            min-height: 150px;
+        }
+        .card {
+            width: 100%;
+            padding-bottom: 140%; /* 카드 비율 유지 */
+            position: absolute;
+            top: 0;
+            left: 0;
+            border: 3px solid #111;
+            border-radius: 8px;
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            image-rendering: pixelated;
+        }
+        .card.face-down {
+            background-color: var(--card-back-color); /* CSS 변수 사용 */
+            background-image: 
+                linear-gradient(45deg, var(--card-pattern-color) 25%, transparent 25%), 
+                linear-gradient(-45deg, var(--card-pattern-color) 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, var(--card-pattern-color) 75%),
+                linear-gradient(-45deg, transparent 75%, var(--card-pattern-color) 75%);
+            background-size: 20px 20px;
+        }
+        .card.face-up {
+            background-color: var(--card-face-up-bg); /* CSS 변수 사용 */
+            color: var(--card-face-up-text); /* CSS 변수 사용 */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 5px;
+            font-size: 16px; /* 폰트 크기 조정 */
+        }
+        .card-rank {
+            font-weight: bold;
+        }
+        .card-suit {
+            align-self: flex-end;
+        }
+        .card.red {
+            color: #d9463d; /* 이 색상은 고정 유지 */
+        }
+        .card.selected {
+            transform: translateY(-10px);
+            border-color: #ffd700;
+            box-shadow: 0 0 15px #ffd700;
+        }
+        /* 힌트 효과 */
+        .card.hint-source, .card.hint-target {
+            box-shadow: 0 0 20px 5px #34d399; /* 밝은 녹색 쉐도우 */
+            border-color: #34d399;
+        }
+        .placeholder.hint-target, .tableau-pile.hint-target {
+             box-shadow: 0 0 20px 5px #34d399;
+             border-color: #34d399;
+             background-color: rgba(52, 211, 153, 0.2);
+             border-style: solid;
+        }
+        .stock-pile.hint-target {
+            box-shadow: 0 0 20px 5px #34d399;
+            border-color: #34d399;
+        }
+        .stock-pile {
+            width: 80px;
+            height: 112px;
+            border: 3px dashed #888;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            cursor: pointer;
+            background-color: rgba(255,255,255,0.1);
+            transition: all 0.2s ease;
+        }
+        .stock-pile .card {
+            position: static;
+            padding-bottom: 0;
+            width: 80%;
+            height: 90%;
+        }
+        .foundation-pile {
+             width: 80px;
+            height: 112px;
+            border: 3px solid #888;
+            border-radius: 8px;
+            background-color: rgba(0,0,0,0.2);
+            position: relative;
+        }
+        .foundation-pile .card {
+             position: absolute;
+             width: 100%;
+             padding-bottom: 140%;
+        }
+        .placeholder {
+            min-height: 140px;
+            border-radius: 8px;
+            border: 3px dashed rgba(255,255,255,0.2);
+             transition: all 0.2s ease;
+        }
+        .message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 40px;
+            border-radius: 10px;
+            border: 3px solid #ffd700;
+            text-align: center;
+            z-index: 100;
+            font-size: 24px;
+            display: none; /* 기본적으로 숨김 */
+        }
+        /* 툴팁 스타일 */
+        .tooltip-container {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip-text {
+            visibility: hidden;
+            width: 250px;
+            background-color: #1f2937;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -125px; /* width의 절반 */
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+            pointer-events: none;
+        }
+        .tooltip-container:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white p-4">
+
+    <div class="container mx-auto">
+        <!-- 상단 UI: 점수, 새 게임 버튼, 힌트 버튼 -->
+        <div class="flex justify-between items-center mb-4 p-4 bg-gray-800 rounded-lg shadow-lg">
+            <h1 class="text-2xl">Pixel Spider</h1>
+            <div class="flex items-center space-x-4">
+                <span>움직임: <span id="moves-count">0</span></span>
+                <span>완성 세트: <span id="completed-sets-count">0</span> / 8</span>
+                <div class="tooltip-container">
+                    <span>힌트: <span id="hints-left-count">3</span></span>
+                    <button id="hint-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded ml-2">?</button>
+                    <span class="tooltip-text">Click to reveal a possible move. Highlights the card(s) to move and their destination.</span>
+                </div>
+            </div>
+            <button id="new-game-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded ml-4">
+                새 게임
+            </button>
+        </div>
+
+        <!-- 카드 놓는 곳과 재고 -->
+        <div class="flex justify-between items-start mb-4 p-4 bg-gray-800 rounded-lg shadow-lg">
+            <div id="foundation-container" class="flex space-x-2">
+                <!-- 완성된 세트가 여기에 표시됩니다. -->
+            </div>
+            <div id="stock-container" class="stock-pile">
+                <!-- 재고 카드가 여기에 표시됩니다. -->
+            </div>
+        </div>
+
+        <!-- 게임 보드 -->
+        <div id="game-board" class="game-board">
+            <!-- 10개의 열이 여기에 생성됩니다. -->
+        </div>
+    </div>
+
+    <!-- 승리 메시지 박스 -->
+    <div id="win-message" class="message-box">
+        <p>축하합니다!</p>
+        <p>모든 카드를 정리했습니다!</p>
+        <p>총 움직임: <span id="final-moves"></span></p>
+        <button id="play-again-btn" class="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+            다시하기
+        </button>
+    </div>
+
+      <!-- 알림 메시지 박스 (힌트 메시지로 재활용) -->
+    <div id="alert-message" class="message-box" style="border-color: #f59e0b;">
+        <p id="alert-text"></p>
+        <button id="alert-close-btn" class="mt-4 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded hidden">확인</button>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM 요소 ---
+            const gameBoard = document.getElementById('game-board');
+            const movesCountEl = document.getElementById('moves-count');
+            const newGameBtn = document.getElementById('new-game-btn');
+            const stockContainer = document.getElementById('stock-container');
+            const completedSetsCountEl = document.getElementById('completed-sets-count');
+            const foundationContainer = document.getElementById('foundation-container');
+            const winMessageEl = document.getElementById('win-message');
+            const finalMovesEl = document.getElementById('final-moves');
+            const playAgainBtn = document.getElementById('play-again-btn');
+            const hintBtn = document.getElementById('hint-btn');
+            const hintsLeftCountEl = document.getElementById('hints-left-count');
+            const alertMessageEl = document.getElementById('alert-message');
+            const alertTextEl = document.getElementById('alert-text');
+            const alertCloseBtn = document.getElementById('alert-close-btn');
+
+
+            // --- 게임 상태 변수 ---
+            const SUITS = ['♠'];
+            const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+            
+            let deck = [];
+            let tableauPiles = [];
+            let stock = [];
+            let moves = 0;
+            let completedSets = 0;
+            let selectedStack = null;
+            let hintsLeft = 3; // 힌트 횟수
+
+            // 배경 및 카드 색상 팔레트 추가 (배경색과 어울리는 카드 색상을 포함)
+            const colorPalettes = [
+                {
+                    body: '#0d2f1c', // Original Dark Green
+                    cardBack: '#4a4a8a', // Blue-Purple
+                    cardPattern: '#3a3a7a', // Darker Blue-Purple
+                    cardFaceUpBg: '#e0e0e0', // Light Gray for card front
+                    cardFaceUpText: '#111' // Dark text for card front
+                },
+                {
+                    body: '#2c3e50', // Dark Blue-Gray
+                    cardBack: '#5c4b4b', // Muted Red-Brown
+                    cardPattern: '#4a3a3a', // Darker Muted Red-Brown
+                    cardFaceUpBg: '#f0f0f0',
+                    cardFaceUpText: '#111'
+                },
+                {
+                    body: '#4a2c3a', // Dark Plum
+                    cardBack: '#3b5e3b', // Dark Green
+                    cardPattern: '#2c4b2c', // Darker Green
+                    cardFaceUpBg: '#ffeede', // Off-White
+                    cardFaceUpText: '#222'
+                },
+                {
+                    body: '#3a4a2c', // Olive Green
+                    cardBack: '#5a3d5a', // Dark Purple
+                    cardPattern: '#4a2d4a', // Darker Purple
+                    cardFaceUpBg: '#fffacd', // Light Yellow
+                    cardFaceUpText: '#333'
+                },
+                {
+                    body: '#2a3b4c', // Desaturated Blue
+                    cardBack: '#4c4c2a', // Dark Ochre
+                    cardPattern: '#3d3d1b', // Darker Ochre
+                    cardFaceUpBg: '#fafafa',
+                    cardFaceUpText: '#111'
+                }
+            ];
+
+            // --- 사운드 효과 (Tone.js) ---
+            const sounds = {
+                click: new Tone.Synth({ oscillator: { type: "sine" }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination(),
+                move: new Tone.Synth({ oscillator: { type: "triangle" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination(),
+                error: new Tone.MembraneSynth().toDestination(),
+                complete: new Tone.PluckSynth().toDestination(),
+                win: new Tone.Synth({ oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.4, sustain: 0.5, release: 1 } }).toDestination(),
+                hint: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.1 } }).toDestination(),
+            };
+
+            // --- 게임 초기화 함수 ---
+            function initGame() {
+                deck = [];
+                tableauPiles = Array.from({ length: 10 }, () => []);
+                stock = [];
+                moves = 0;
+                completedSets = 0;
+                hintsLeft = 3; // 힌트 횟수 초기화
+                selectedStack = null;
+                winMessageEl.style.display = 'none';
+                alertMessageEl.style.display = 'none'; // 게임 시작 시 알림 메시지 숨김
+
+                // 게임 초기화 시 배경색 및 카드 색상 팔레트를 무작위로 변경
+                const randomPalette = colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
+                document.documentElement.style.setProperty('--body-bg-color', randomPalette.body);
+                document.documentElement.style.setProperty('--card-back-color', randomPalette.cardBack);
+                document.documentElement.style.setProperty('--card-pattern-color', randomPalette.cardPattern);
+                document.documentElement.style.setProperty('--card-face-up-bg', randomPalette.cardFaceUpBg);
+                document.documentElement.style.setProperty('--card-face-up-text', randomPalette.cardFaceUpText);
+                console.log(`게임 배경 및 카드 색상 변경: 배경=${randomPalette.body}, 카드뒷면=${randomPalette.cardBack}`);
+
+                for (let i = 0; i < 8; i++) {
+                    for (let rank of RANKS) {
+                        deck.push({ suit: SUITS[0], rank, value: RANKS.indexOf(rank) + 1, faceUp: false });
+                    }
+                }
+                
+                shuffle(deck);
+
+                for (let i = 0; i < 10; i++) {
+                    const cardsToDeal = i < 4 ? 6 : 5;
+                    for (let j = 0; j < cardsToDeal; j++) {
+                        tableauPiles[i].push(deck.pop());
+                    }
+                    if (tableauPiles[i].length > 0) {
+                        tableauPiles[i][tableauPiles[i].length - 1].faceUp = true;
+                    }
+                }
+
+                while(deck.length > 0) {
+                    stock.push(deck.splice(0, 10));
+                }
+                
+                render();
+            }
+
+            function shuffle(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+
+            // --- 렌더링 함수 ---
+            function render() {
+                gameBoard.innerHTML = '';
+                
+                tableauPiles.forEach((pile, pileIndex) => {
+                    const pileEl = document.createElement('div');
+                    pileEl.className = 'tableau-pile';
+                    pileEl.dataset.pileIndex = pileIndex;
+                    if (pile.length === 0) {
+                        pileEl.classList.add('placeholder');
+                    }
+
+                    pile.forEach((card, cardIndex) => {
+                        const cardEl = createCardElement(card, pileIndex, cardIndex);
+                        cardEl.style.top = `${cardIndex * 30}px`;
+                        pileEl.appendChild(cardEl);
+                    });
+                    gameBoard.appendChild(pileEl);
+                });
+
+                stockContainer.innerHTML = '';
+                if (stock.length > 0) {
+                    const stockCountEl = document.createElement('div');
+                    stockCountEl.textContent = `남은 딜: ${stock.length}`;
+                    stockContainer.appendChild(stockCountEl);
+                    const cardBack = document.createElement('div');
+                    cardBack.className = 'card face-down';
+                    stockContainer.appendChild(cardBack);
+                } else {
+                    stockContainer.textContent = '비었음';
+                    stockContainer.style.cursor = 'default';
+                }
+
+                movesCountEl.textContent = moves;
+                completedSetsCountEl.textContent = `${completedSets} / 8`;
+                hintsLeftCountEl.textContent = hintsLeft;
+                hintBtn.disabled = hintsLeft <= 0;
+                hintBtn.style.opacity = hintsLeft <= 0 ? 0.5 : 1;
+                
+                foundationContainer.innerHTML = '';
+                for (let i = 0; i < completedSets; i++) {
+                    const foundationPileEl = document.createElement('div');
+                    foundationPileEl.className = 'foundation-pile';
+                    const cardEl = createCardElement({ suit: SUITS[0], rank: 'K', faceUp: true });
+                    foundationPileEl.appendChild(cardEl);
+                    foundationContainer.appendChild(foundationPileEl);
+                }
+            }
+            
+            function createCardElement(card, pileIndex, cardIndex) {
+                const cardEl = document.createElement('div');
+                cardEl.className = 'card';
+                cardEl.dataset.pileIndex = pileIndex;
+                cardEl.dataset.cardIndex = cardIndex;
+
+                if (card.faceUp) {
+                    cardEl.classList.add('face-up');
+                    const rankEl = document.createElement('div');
+                    rankEl.className = 'card-rank';
+                    rankEl.textContent = card.rank;
+                    const suitEl = document.createElement('div');
+                    suitEl.className = 'card-suit';
+                    suitEl.textContent = card.suit;
+                    cardEl.appendChild(rankEl);
+                    cardEl.appendChild(suitEl);
+                } else {
+                    cardEl.classList.add('face-down');
+                }
+                return cardEl;
+            }
+
+            // --- 이벤트 핸들러 ---
+            gameBoard.addEventListener('click', handleTableauClick);
+            stockContainer.addEventListener('click', handleStockClick);
+            newGameBtn.addEventListener('click', () => {
+                sounds.click.triggerAttackRelease("C4", "8n");
+                initGame();
+            });
+            playAgainBtn.addEventListener('click', () => {
+                sounds.click.triggerAttackRelease("C4", "8n");
+                initGame();
+            });
+            hintBtn.addEventListener('click', handleHintClick);
+            alertCloseBtn.addEventListener('click', () => {
+                alertMessageEl.style.display = 'none';
+            }); // 알림 닫기 버튼
+
+            function handleTableauClick(e) {
+                const cardEl = e.target.closest('.card.face-up');
+                const pileEl = e.target.closest('.tableau-pile');
+
+                console.log("handleTableauClick - 클릭 이벤트 발생");
+                alertMessageEl.style.display = 'none'; // 카드 클릭 시 힌트 메시지 숨김
+
+                if (cardEl) {
+                    const pileIndex = parseInt(cardEl.dataset.pileIndex);
+                    const cardIndex = parseInt(cardEl.dataset.cardIndex);
+                    console.log(`handleTableauClick - 카드 클릭됨: Pile ${pileIndex}, Card ${cardIndex}`);
+                    
+                    const stackToSelect = getDraggableStack(pileIndex, cardIndex);
+                    if (!stackToSelect || stackToSelect.cards.length === 0) {
+                        console.log("handleTableauClick - 이동 가능한 스택이 없거나 비어있음.");
+                        sounds.error.triggerAttackRelease("C2", "8n");
+                        deselectStack();
+                        return;
+                    }
+                    console.log("handleTableauClick - 이동 가능한 스택:", stackToSelect.cards);
+                    
+                    if (!selectedStack) {
+                        console.log("handleTableauClick - 스택 선택 중.");
+                        selectStack(pileIndex, cardIndex, stackToSelect.elements);
+                        sounds.click.triggerAttackRelease("E4", "8n");
+                    } else {
+                        if (selectedStack.pileIndex === pileIndex) {
+                           console.log("handleTableauClick - 선택된 스택을 취소합니다 (같은 더미 클릭).");
+                           deselectStack();
+                           sounds.click.triggerAttackRelease("C3", "8n");
+                        } else {
+                           console.log(`handleTableauClick - 스택 이동 시도: Source Pile ${selectedStack.pileIndex} -> Dest Pile ${pileIndex}`);
+                           moveStack(pileIndex);
+                        }
+                    }
+                } else if (pileEl && selectedStack) {
+                    const pileIndex = parseInt(pileEl.dataset.pileIndex);
+                    console.log(`handleTableauClick - 빈 더미 클릭됨: Pile ${pileIndex}`);
+                    if (tableauPiles[pileIndex].length === 0) {
+                        console.log(`handleTableauClick - 빈 더미로 이동 시도: Source Pile ${selectedStack.pileIndex} -> Dest Pile ${pileIndex}`);
+                        moveStack(pileIndex);
+                    } else {
+                        console.log("handleTableauClick - 유효하지 않은 이동 시도 (빈 더미가 아님).");
+                        sounds.error.triggerAttackRelease("C2", "8n");
+                        deselectStack();
+                        render();
+                    }
+                } else {
+                    console.log("handleTableauClick - 유효하지 않은 클릭 (카드 또는 빈 더미가 아님).");
+                    deselectStack();
+                    render();
+                }
+            }
+
+            function handleStockClick() {
+                console.log("handleStockClick - 재고 클릭 이벤트 발생");
+                alertMessageEl.style.display = 'none'; // 재고 클릭 시 힌트 메시지 숨김
+                if (stock.length === 0) {
+                    console.log("handleStockClick - 재고가 비어있음.");
+                    return;
+                }
+
+                if (tableauPiles.some(pile => pile.length === 0)) {
+                    console.log("handleStockClick - 빈 더미가 있어 카드를 받을 수 없음.");
+                    showAlert("카드를 놓을 빈 공간이 있으면 새 카드를 받을 수 없습니다.");
+                    sounds.error.triggerAttackRelease("C2", "8n");
+                    return;
+                }
+                
+                sounds.click.triggerAttackRelease("A3", "8n");
+                console.log("handleStockClick - 재고에서 카드 분배 시작.");
+                const cardsToDeal = stock.pop();
+                cardsToDeal.forEach((card, index) => {
+                    card.faceUp = true;
+                    tableauPiles[index].push(card);
+                    console.log(`handleStockClick - Pile ${index}에 카드 추가: ${card.rank}${card.suit}`);
+                });
+                
+                incrementMoves();
+                deselectStack();
+                render();
+                
+                for(let i=0; i < 10; i++){
+                    checkForCompleteSet(i);
+                }
+            }
+            
+            // --- 게임 로직 및 힌트 함수 ---
+
+            function showAlert(message, isHint = false) {
+                console.log("showAlert - 메시지 표시:", message, " (isHint:", isHint, ")");
+                alertTextEl.textContent = message;
+                alertMessageEl.style.display = 'block';
+                if (isHint) {
+                    alertCloseBtn.classList.remove('hidden');
+                } else {
+                    alertCloseBtn.classList.add('hidden');
+                    setTimeout(() => {
+                        alertMessageEl.style.display = 'none';
+                        console.log("showAlert - 메시지 숨김.");
+                    }, 2000);
+                }
+            }
+
+            function handleHintClick() {
+                console.log("handleHintClick - 힌트 버튼 클릭됨. 남은 힌트:", hintsLeft);
+                alertMessageEl.style.display = 'none'; // 힌트 버튼 누르면 이전 메시지 숨김
+
+                if (hintsLeft <= 0) {
+                    console.log("handleHintClick - 남은 힌트 없음.");
+                    showAlert("더 이상 힌트를 사용할 수 없습니다.", false);
+                    return;
+                }
+
+                sounds.hint.triggerAttackRelease("A4", "8n");
+                const hint = findHint();
+                console.log("handleHintClick - 찾은 힌트:", hint);
+
+                if (hint) {
+                    hintsLeft--;
+                    showHint(hint);
+                    render(); // 힌트 카운트 업데이트
+                    console.log("handleHintClick - 힌트 표시 및 카운트 감소.");
+
+                    let hintMessage = "";
+                    if (hint.fromStock) {
+                        hintMessage = "재고에서 카드 10장을 분배하세요!";
+                    } else {
+                        const sourceCard = tableauPiles[hint.sourcePileIndex][hint.sourceCardIndex];
+                        hintMessage = `${sourceCard.rank}${sourceCard.suit} (Pile ${hint.sourcePileIndex + 1}의 ${sourceCard.rank})을(를) Pile ${hint.destPileIndex + 1}로 이동하세요.`;
+                    }
+                    showAlert(hintMessage, true); // 힌트 메시지 표시 (isHint = true로 설정)
+                } else {
+                    showAlert("더 이상 움직일 수 있는 카드가 없습니다! 재고를 확인하세요.", false);
+                    console.log("handleHintClick - 움직일 수 있는 힌트 없음.");
+                }
+            }
+            
+            function findHint() {
+                console.log("findHint - 힌트 탐색 시작.");
+                for (let sourcePileIndex = 0; sourcePileIndex < tableauPiles.length; sourcePileIndex++) {
+                    const sourcePile = tableauPiles[sourcePileIndex];
+                    if (sourcePile.length === 0) {
+                        console.log(`findHint - Source Pile ${sourcePileIndex}가 비어있음.`);
+                        continue;
+                    }
+
+                    for (let sourceCardIndex = 0; sourceCardIndex < sourcePile.length; sourceCardIndex++) {
+                        if (!sourcePile[sourceCardIndex].faceUp) {
+                            console.log(`findHint - Card ${sourceCardIndex} in Pile ${sourcePileIndex}가 뒤집혀 있음.`);
+                            continue;
+                        }
+
+                        const stackInfo = getDraggableStack(sourcePileIndex, sourceCardIndex);
+                        if (!stackInfo || stackInfo.cards.length === 0) {
+                            console.log(`findHint - Pile ${sourcePileIndex}, Card ${sourceCardIndex}에서 이동 가능한 스택을 찾을 수 없음.`);
+                            continue;
+                        }
+
+                        const movingCard = stackInfo.cards[0];
+                        console.log(`findHint - 이동 가능한 스택 시작 카드: ${movingCard.rank}${movingCard.suit} (Pile ${sourcePileIndex}, Index ${sourceCardIndex})`);
+                        
+                        for (let destPileIndex = 0; destPileIndex < tableauPiles.length; destPileIndex++) {
+                            if (sourcePileIndex === destPileIndex) continue;
+
+                            const destPile = tableauPiles[destPileIndex];
+                            const canMove = (destPile.length === 0) || (movingCard.value === destPile[destPile.length - 1].value - 1);
+
+                            if (canMove) {
+                                console.log(`findHint - 힌트 발견: From Pile ${sourcePileIndex}, Card ${sourceCardIndex} to Pile ${destPileIndex}`);
+                                return { sourcePileIndex, sourceCardIndex, destPileIndex };
+                            } else {
+                                console.log(`findHint - Pile ${sourcePileIndex}, Card ${sourceCardIndex} -> Pile ${destPileIndex}로 이동 불가능. (대상: ${destPile.length > 0 ? destPile[destPile.length - 1].rank + destPile[destPile.length - 1].suit : 'EMPTY'})`);
+                            }
+                        }
+                    }
+                }
+
+                if (stock.length > 0 && !tableauPiles.some(p => p.length === 0)) {
+                    console.log("findHint - 재고 카드 분배 힌트 발견.");
+                    return { fromStock: true };
+                }
+
+                console.log("findHint - 유효한 힌트를 찾을 수 없음.");
+                return null;
+            }
+
+            function showHint(hint) {
+                console.log("showHint - 힌트 표시 시작:", hint);
+                const HINT_DURATION = 3000; // 힌트 표시 시간 (3초)
+
+                if (hint.fromStock) {
+                    stockContainer.classList.add('hint-target');
+                    console.log("showHint - 재고 파일 힌트 표시.");
+                    setTimeout(() => {
+                        stockContainer.classList.remove('hint-target');
+                        console.log("showHint - 재고 파일 힌트 제거.");
+                    }, HINT_DURATION);
+                    return;
+                }
+                
+                const { sourcePileIndex, sourceCardIndex, destPileIndex } = hint;
+                console.log(`showHint - Source Pile ${sourcePileIndex}, Card ${sourceCardIndex}, Dest Pile ${destPileIndex}`);
+
+                const stack = getDraggableStack(sourcePileIndex, sourceCardIndex);
+                if (stack) {
+                    stack.elements.forEach(el => el.classList.add('hint-source'));
+                    console.log("showHint - 원본 스택 힌트 표시.");
+                }
+                
+                const destPileEl = document.querySelector(`.tableau-pile[data-pile-index='${destPileIndex}']`);
+                if (destPileEl) {
+                    destPileEl.classList.add('hint-target');
+                    if(tableauPiles[destPileIndex].length > 0){
+                        destPileEl.lastChild.classList.add('hint-target');
+                    }
+                    console.log("showHint - 대상 더미 힌트 표시.");
+                }
+
+                setTimeout(() => {
+                    if (stack) {
+                        stack.elements.forEach(el => el.classList.remove('hint-source'));
+                        console.log("showHint - 원본 스택 힌트 제거.");
+                    }
+                    if (destPileEl) {
+                        destPileEl.classList.remove('hint-target');
+                        // tableauPile[destPileIndex]는 전역 변수가 아니므로 tableauPiles[destPileIndex]로 변경
+                        if(tableauPiles[destPileIndex] && tableauPiles[destPileIndex].length > 0){
+                           destPileEl.lastChild.classList.remove('hint-target');
+                        }
+                        console.log("showHint - 대상 더미 힌트 제거.");
+                    }
+                }, HINT_DURATION);
+            }
+
+            function getDraggableStack(pileIndex, cardIndex) {
+                console.log(`getDraggableStack - 호출됨: Pile ${pileIndex}, Card ${cardIndex}`);
+                const pile = tableauPiles[pileIndex];
+                if (!pile[cardIndex] || !pile[cardIndex].faceUp) {
+                    console.log("getDraggableStack - 카드 존재하지 않거나 뒤집혀 있음.");
+                    return null;
+                }
+
+                const stackCards = [];
+                const stackElements = [];
+                let currentExpectedValue = pile[cardIndex].value;
+
+                stackCards.push(pile[cardIndex]);
+                const initialCardEl = document.querySelector(`.card[data-pile-index='${pileIndex}'][data-card-index='${cardIndex}']`);
+                if (initialCardEl) stackElements.push(initialCardEl);
+                console.log(`getDraggableStack - 초기 카드 추가: ${pile[cardIndex].rank}${pile[cardIndex].suit}`);
+
+
+                for (let i = cardIndex + 1; i < pile.length; i++) {
+                    const currentCard = pile[i];
+                    if (currentCard.faceUp && currentCard.value === currentExpectedValue - 1) {
+                        stackCards.push(currentCard);
+                        const cardEl = document.querySelector(`.card[data-pile-index='${pileIndex}'][data-card-index='${i}']`);
+                        if(cardEl) stackElements.push(cardEl);
+                        currentExpectedValue = currentCard.value;
+                        console.log(`getDraggableStack - 스택에 카드 추가: ${currentCard.rank}${currentCard.suit}`);
+                    } else {
+                        console.log(`getDraggableStack - 시퀀스 끊김 또는 카드 뒤집힘: ${currentCard.rank}${currentCard.suit} (값: ${currentCard.value}, 예상값: ${currentExpectedValue - 1})`);
+                        break;
+                    }
+                }
+                console.log("getDraggableStack - 반환 스택:", stackCards);
+                return { cards: stackCards, elements: stackElements };
+            }
+
+            function selectStack(pileIndex, cardIndex, elements) {
+                console.log(`selectStack - 스택 선택: Pile ${pileIndex}, Card ${cardIndex}`);
+                deselectStack();
+                selectedStack = { pileIndex, cardIndex, elements };
+                elements.forEach(el => el.classList.add('selected'));
+            }
+
+            function deselectStack() {
+                if (selectedStack) {
+                    console.log("deselectStack - 스택 선택 해제.");
+                    selectedStack.elements.forEach(el => el.classList.remove('selected'));
+                    selectedStack = null;
+                }
+            }
+
+            function moveStack(destPileIndex) {
+                console.log(`moveStack - 이동 시도: Dest Pile ${destPileIndex}`);
+                alertMessageEl.style.display = 'none'; // 이동 시도 시 힌트 메시지 숨김
+                if (!selectedStack) {
+                    console.log("moveStack - 선택된 스택이 없음.");
+                    return;
+                }
+
+                const { pileIndex: sourcePileIndex, cardIndex: sourceCardIndex } = selectedStack;
+                const sourcePile = tableauPiles[sourcePileIndex];
+                const destPile = tableauPiles[destPileIndex];
+                const movingStack = sourcePile.slice(sourceCardIndex);
+                
+                const canMove = destPile.length === 0 || 
+                               (destPile.length > 0 && movingStack[0].value === destPile[destPile.length - 1].value - 1);
+                console.log(`moveStack - 이동 가능 여부: ${canMove}`);
+                console.log(`moveStack - 이동하려는 카드: ${movingStack[0].rank}${movingStack[0].suit}`);
+                console.log(`moveStack - 대상 더미 맨 위 카드: ${destPile.length > 0 ? destPile[destPile.length - 1].rank + destPile[destPile.length - 1].suit : 'EMPTY'}`);
+
+
+                if (canMove) {
+                    console.log("moveStack - 이동 가능. 카드 이동 중...");
+                    const movedCards = sourcePile.splice(sourceCardIndex, movingStack.length);
+                    tableauPiles[destPileIndex].push(...movedCards);
+
+                    if (sourcePile.length > 0 && !sourcePile[sourcePile.length - 1].faceUp) {
+                        sourcePile[sourcePile.length - 1].faceUp = true;
+                        console.log(`moveStack - Source Pile ${sourcePileIndex}의 맨 위 카드 뒤집음.`);
+                    }
+
+                    sounds.move.triggerAttackRelease("G4", "8n");
+                    incrementMoves();
+                    deselectStack();
+                    render();
+                    
+                    checkForCompleteSet(destPileIndex);
+
+                } else {
+                    console.log("moveStack - 이동 불가능. 오류 사운드 재생.");
+                    sounds.error.triggerAttackRelease("C2", "8n");
+                    deselectStack();
+                    render();
+                }
+            }
+            
+            function incrementMoves() {
+                moves++;
+                movesCountEl.textContent = moves;
+                console.log("incrementMoves - 움직임 횟수 증가:", moves);
+            }
+
+            function checkForCompleteSet(pileIndex) {
+                console.log(`checkForCompleteSet - 완성 세트 확인: Pile ${pileIndex}`);
+                const pile = tableauPiles[pileIndex];
+                if (pile.length < 13) {
+                    console.log(`checkForCompleteSet - Pile ${pileIndex}의 길이가 13 미만임 (${pile.length}).`);
+                    return;
+                }
+
+                const lastCard = pile[pile.length - 1];
+                if (lastCard.value !== 1) {
+                    console.log(`checkForCompleteSet - Pile ${pileIndex}의 맨 위 카드가 에이스(1)가 아님 (값: ${lastCard.value}).`);
+                    return;
+                }
+
+                let expectedValue = 1;
+                let isComplete = true;
+                for (let i = pile.length - 1; i >= pile.length - 13; i--) {
+                    if (pile[i].value !== expectedValue || !pile[i].faceUp) {
+                        isComplete = false;
+                        console.log(`checkForCompleteSet - 순서 불일치 또는 뒤집힌 카드 발견: ${pile[i].rank}${pile[i].suit} (값: ${pile[i].value}, 예상값: ${expectedValue}, 뒤집힘: ${!pile[i].faceUp})`);
+                        break;
+                    }
+                    expectedValue++;
+                }
+                
+                if (isComplete) {
+                    console.log(`checkForCompleteSet - Pile ${pileIndex}에서 완성된 세트 발견!`);
+                    setTimeout(() => {
+                        pile.splice(pile.length - 13, 13);
+                        completedSets++;
+                        sounds.complete.triggerAttackRelease("C5", "4n");
+                        console.log("checkForCompleteSet - 세트 제거 및 완성 세트 카운트 증가:", completedSets);
+
+                        if (pile.length > 0 && !pile[pile.length - 1].faceUp) {
+                            pile[pile.length - 1].faceUp = true;
+                            console.log(`checkForCompleteSet - Pile ${pileIndex}의 맨 위 카드 뒤집음.`);
+                        }
+                        
+                        render();
+                        checkForWin();
+                    }, 300);
+                }
+            }
+            
+            function checkForWin() {
+                console.log("checkForWin - 승리 조건 확인. 완성 세트:", completedSets);
+                if (completedSets === 8) {
+                    sounds.win.triggerAttackRelease("G5", "1n");
+                    finalMovesEl.textContent = moves;
+                    winMessageEl.style.display = 'block';
+                    console.log("checkForWin - 게임 승리! 최종 움직임:", moves);
+                }
+            }
+
+            // --- 게임 시작 ---
+            console.log("게임 초기화 중...");
+            initGame();
+            console.log("게임 초기화 완료.");
+        });
+    </script>
+</body>
+</html>
