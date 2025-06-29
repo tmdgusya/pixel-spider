@@ -148,9 +148,28 @@
             border: 3px solid #ffd700;
             text-align: center;
             z-index: 100;
-            font-size: 24px;
+            font-size: 20px; /* 폰트 크기 조정 */
             display: none; /* 기본적으로 숨김 */
         }
+        .message-box p { /* 메시지 텍스트 줄바꿈 */
+            overflow-wrap: break-word;
+        }
+
+        /* 모달 공통 스타일 */
+        .common-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+
         /* 툴팁 스타일 */
         .tooltip-container {
             position: relative;
@@ -182,22 +201,68 @@
 </head>
 <body class="bg-gray-900 text-white p-4">
 
+    <!-- 언어 선택 모달 -->
+    <div id="language-selection-modal" class="common-modal">
+        <h2 class="text-4xl mb-8" id="lang-select-title">언어 선택</h2>
+        <div class="flex flex-col space-y-4">
+            <button id="lang-ko-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-lg text-2xl">
+                한국어
+            </button>
+            <button id="lang-en-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-lg text-2xl">
+                English
+            </button>
+            <button id="lang-ja-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg text-2xl">
+                日本語
+            </button>
+            <button id="lang-zh-btn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-8 rounded-lg text-2xl">
+                中文
+            </button>
+        </div>
+    </div>
+
+    <!-- 난이도 선택 모달 -->
+    <div id="difficulty-selection-modal" class="common-modal" style="display: none;">
+        <h2 class="text-4xl mb-8" id="difficulty-select-title">난이도 선택</h2>
+        <div class="flex flex-col space-y-4">
+            <button id="difficulty-1-suit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-lg text-2xl">
+                쉬움 (1벌)
+            </button>
+            <button id="difficulty-2-suits" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-lg text-2xl">
+                보통 (2벌)
+            </button>
+            <button id="difficulty-4-suits" class="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-8 rounded-lg text-2xl">
+                어려움 (4벌)
+            </button>
+        </div>
+    </div>
+
     <div class="container mx-auto">
         <!-- 상단 UI: 점수, 새 게임 버튼, 힌트 버튼 -->
         <div class="flex justify-between items-center mb-4 p-4 bg-gray-800 rounded-lg shadow-lg">
-            <h1 class="text-2xl">Pixel Spider</h1>
+            <h1 class="text-2xl" id="game-title">픽셀 스파이더 카드놀이</h1>
             <div class="flex items-center space-x-4">
-                <span>움직임: <span id="moves-count">0</span></span>
-                <span>완성 세트: <span id="completed-sets-count">0</span> / 8</span>
+                <span id="moves-label">움직임: </span><span id="moves-count">0</span>
+                <span id="score-label">점수: </span><span id="current-score">0</span>
+                <span id="high-score-label">최고 점수: </span><span id="high-score">0</span>
+                <span id="time-label">시간: </span><span id="timer-display">00:00</span>
+                <span id="completed-sets-label">완성 세트: </span><span id="completed-sets-count">0</span> / 8
                 <div class="tooltip-container">
-                    <span>힌트: <span id="hints-left-count">3</span></span>
+                    <span id="hints-used-label">힌트 사용: </span><span id="hints-used-count">0</span>
                     <button id="hint-btn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded ml-2">?</button>
-                    <span class="tooltip-text">Click to reveal a possible move. Highlights the card(s) to move and their destination.</span>
+                    <span class="tooltip-text" id="hint-tooltip-text">가능한 움직임을 보여줍니다. 이동할 카드와 목적지를 강조 표시합니다.</span>
                 </div>
             </div>
-            <button id="new-game-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded ml-4">
-                새 게임
-            </button>
+            <div class="flex space-x-2">
+                <button id="undo-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded ml-4" disabled>
+                    되돌리기
+                </button>
+                <button id="auto-complete-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded ml-4" disabled>
+                    자동 완성
+                </button>
+                <button id="new-game-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded ml-4">
+                    새 게임
+                </button>
+            </div>
         </div>
 
         <!-- 카드 놓는 곳과 재고 -->
@@ -218,9 +283,10 @@
 
     <!-- 승리 메시지 박스 -->
     <div id="win-message" class="message-box">
-        <p>축하합니다!</p>
-        <p>모든 카드를 정리했습니다!</p>
-        <p>총 움직임: <span id="final-moves"></span></p>
+        <p id="congratulations-text">축하합니다!</p>
+        <p id="all-cards-cleared-text">모든 카드를 정리했습니다!</p>
+        <p><span id="total-moves-label">총 움직임: </span><span id="final-moves"></span></p>
+        <p><span id="final-score-label">최종 점수: </span><span id="final-score"></span></p>
         <button id="play-again-btn" class="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
             다시하기
         </button>
@@ -229,31 +295,63 @@
       <!-- 알림 메시지 박스 (힌트 메시지로 재활용) -->
     <div id="alert-message" class="message-box" style="border-color: #f59e0b;">
         <p id="alert-text"></p>
-        <button id="alert-close-btn" class="mt-4 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded hidden">확인</button>
+        <button id="alert-close-btn" class="mt-4 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded hidden" id="ok-button">확인</button>
     </div>
 
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- DOM 요소 ---
-            const gameBoard = document.getElementById('game-board');
+            const languageSelectionModal = document.getElementById('language-selection-modal');
+            const langKoBtn = document.getElementById('lang-ko-btn');
+            const langEnBtn = document.getElementById('lang-en-btn');
+            const langJaBtn = document.getElementById('lang-ja-btn');
+            const langZhBtn = document.getElementById('lang-zh-btn');
+            const langSelectTitle = document.getElementById('lang-select-title');
+
+            const difficultySelectionModal = document.getElementById('difficulty-selection-modal');
+            const difficulty1SuitBtn = document.getElementById('difficulty-1-suit');
+            const difficulty2SuitsBtn = document.getElementById('difficulty-2-suits');
+            const difficulty4SuitsBtn = document.getElementById('difficulty-4-suits');
+            const difficultySelectTitle = document.getElementById('difficulty-select-title');
+
+            const gameBoard = document.getElementById('game-board'); 
+
+            const gameTitleEl = document.getElementById('game-title');
+            const movesLabelEl = document.getElementById('moves-label');
             const movesCountEl = document.getElementById('moves-count');
+            const scoreLabelEl = document.getElementById('score-label');
+            const currentScoreEl = document.getElementById('current-score');
+            const highScoreLabelEl = document.getElementById('high-score-label');
+            const highScoreEl = document.getElementById('high-score');
+            const timeLabelEl = document.getElementById('time-label');
+            const timerDisplayEl = document.getElementById('timer-display');
+            const completedSetsLabelEl = document.getElementById('completed-sets-label');
+            const completedSetsCountEl = document.getElementById('completed-sets-count');
+            const hintsUsedLabelEl = document.getElementById('hints-used-label');
+            const hintsUsedCountEl = document.getElementById('hints-used-count');
+            const hintBtn = document.getElementById('hint-btn');
+            const hintTooltipTextEl = document.getElementById('hint-tooltip-text');
+            const undoBtn = document.getElementById('undo-btn');
+            const autoCompleteBtn = document.getElementById('auto-complete-btn');
             const newGameBtn = document.getElementById('new-game-btn');
             const stockContainer = document.getElementById('stock-container');
-            const completedSetsCountEl = document.getElementById('completed-sets-count');
             const foundationContainer = document.getElementById('foundation-container');
             const winMessageEl = document.getElementById('win-message');
+            const congratulationsTextEl = document.getElementById('congratulations-text');
+            const allCardsClearedTextEl = document.getElementById('all-cards-cleared-text');
+            const totalMovesLabelEl = document.getElementById('total-moves-label');
             const finalMovesEl = document.getElementById('final-moves');
+            const finalScoreLabelEl = document.getElementById('final-score-label');
+            const finalScoreEl = document.getElementById('final-score');
             const playAgainBtn = document.getElementById('play-again-btn');
-            const hintBtn = document.getElementById('hint-btn');
-            const hintsLeftCountEl = document.getElementById('hints-left-count');
             const alertMessageEl = document.getElementById('alert-message');
             const alertTextEl = document.getElementById('alert-text');
             const alertCloseBtn = document.getElementById('alert-close-btn');
 
 
             // --- 게임 상태 변수 ---
-            const SUITS = ['♠'];
+            const ALL_SUITS = ['♠', '♥', '♦', '♣']; // 모든 문양 정의
             const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
             
             let deck = [];
@@ -262,9 +360,162 @@
             let moves = 0;
             let completedSets = 0;
             let selectedStack = null;
-            let hintsLeft = 3; // 힌트 횟수
+            let hintsUsed = 0;
 
-            // 배경 및 카드 색상 팔레트 추가 (배경색과 어울리는 카드 색상을 포함)
+            let timer = 0;
+            let timerInterval = null;
+            let currentScore = 0;
+            let highScore = 0;
+
+            let gameHistory = [];
+            let currentNumSuits = 1; // 현재 난이도 (기본값 1벌)
+            let currentLanguage = 'ko'; // 현재 언어 (기본값 한국어)
+
+            // 언어별 번역 텍스트
+            const translations = {
+                ko: {
+                    gameTitle: "픽셀 스파이더 카드놀이",
+                    moves: "움직임: ",
+                    score: "점수: ",
+                    highScore: "최고 점수: ",
+                    time: "시간: ",
+                    completedSets: "완성 세트: ",
+                    hintsUsed: "힌트 사용: ",
+                    hintTooltip: "가능한 움직임을 보여줍니다. 이동할 카드와 목적지를 강조 표시합니다.",
+                    undo: "되돌리기",
+                    autoComplete: "자동 완성",
+                    newGame: "새 게임",
+                    difficultySelection: "난이도 선택",
+                    easy: "쉬움 (1벌)",
+                    normal: "보통 (2벌)",
+                    hard: "어려움 (4벌)",
+                    stockEmpty: "비었음",
+                    dealsLeft: "남은 딜: ",
+                    cannotDealEmptyPile: "카드를 놓을 빈 공간이 있으면 새 카드를 받을 수 없습니다.",
+                    noMoreHints: "더 이상 힌트를 사용할 수 없습니다.",
+                    noPossibleMoves: "더 이상 움직일 수 있는 카드가 없습니다! 재고를 확인하세요.",
+                    hintDealStock: "재고에서 카드 10장을 분배하세요!",
+                    hintMoveCard: "{rank}{suit} (Pile {sourcePile}의 {rank})을(를) Pile {destPile}로 이동하세요.",
+                    undoLimit: "더 이상 되돌릴 수 없습니다.",
+                    autoCompleteStockNotEmpty: "재고에 카드가 남아있으면 자동 완성할 수 없습니다.",
+                    autoCompleteCardsDown: "모든 카드가 앞면으로 뒤집혀야 자동 완성할 수 있습니다.",
+                    noAutoCompleteSets: "자동 완성할 수 있는 세트가 없습니다.",
+                    congratulations: "축하합니다!",
+                    allCardsCleared: "모든 카드를 정리했습니다!",
+                    totalMoves: "총 움직임: ",
+                    finalScore: "최종 점수: ",
+                    playAgain: "다시하기",
+                    ok: "확인",
+                    languageSelection: "언어 선택"
+                },
+                en: {
+                    gameTitle: "Pixel Spider Solitaire",
+                    moves: "Moves: ",
+                    score: "Score: ",
+                    highScore: "High Score: ",
+                    time: "Time: ",
+                    completedSets: "Completed Sets: ",
+                    hintsUsed: "Hints Used: ",
+                    hintTooltip: "Click to reveal a possible move. Highlights the card(s) to move and their destination.",
+                    undo: "Undo",
+                    autoComplete: "Auto Complete",
+                    newGame: "New Game",
+                    difficultySelection: "Select Difficulty",
+                    easy: "Easy (1 Suit)",
+                    normal: "Normal (2 Suits)",
+                    hard: "Hard (4 Suits)",
+                    stockEmpty: "Empty",
+                    dealsLeft: "Deals Left: ",
+                    cannotDealEmptyPile: "Cannot deal new cards while there are empty tableau piles.",
+                    noMoreHints: "No more hints available.",
+                    noPossibleMoves: "No more possible moves! Check the stock.",
+                    hintDealStock: "Deal 10 cards from the stock!",
+                    hintMoveCard: "Move {rank}{suit} (the {rank} of Pile {sourcePile}) to Pile {destPile}.",
+                    undoLimit: "Cannot undo further.",
+                    autoCompleteStockNotEmpty: "Cannot auto complete while stock has cards.",
+                    autoCompleteCardsDown: "All cards must be face up to auto complete.",
+                    noAutoCompleteSets: "No sets found to auto complete.",
+                    congratulations: "Congratulations!",
+                    allCardsCleared: "All cards cleared!",
+                    totalMoves: "Total Moves: ",
+                    finalScore: "Final Score: ",
+                    playAgain: "Play Again",
+                    ok: "OK",
+                    languageSelection: "Select Language"
+                },
+                ja: {
+                    gameTitle: "ピクセル スパイダー ソリティア",
+                    moves: "移動: ",
+                    score: "スコア: ",
+                    highScore: "ハイスコア: ",
+                    time: "時間: ",
+                    completedSets: "完了セット: ",
+                    hintsUsed: "ヒント使用: ",
+                    hintTooltip: "可能な手を表示します。移動するカードと移動先を強調表示します。",
+                    undo: "元に戻す",
+                    autoComplete: "自動完了",
+                    newGame: "新しいゲーム",
+                    difficultySelection: "難易度選択",
+                    easy: "簡単 (1スート)",
+                    normal: "普通 (2スート)",
+                    hard: "難しい (4スート)",
+                    stockEmpty: "空",
+                    dealsLeft: "残り配布: ",
+                    cannotDealEmptyPile: "空の山札がある場合、新しいカードを配ることはできません。",
+                    noMoreHints: "これ以上ヒントはありません。",
+                    noPossibleMoves: "これ以上可能な移動がありません！ストックを確認してください。",
+                    hintDealStock: "ストックから10枚のカードを配ります！",
+                    hintMoveCard: "{rank}{suit} (山札{sourcePile}の{rank})を山札{destPile}に移動します。",
+                    undoLimit: "これ以上元に戻すことはできません。",
+                    autoCompleteStockNotEmpty: "ストックにカードがある間は自動完了できません。",
+                    autoCompleteCardsDown: "すべてのカードが表向きである必要があります。",
+                    noAutoCompleteSets: "自動完了できるセットが見つかりません。",
+                    congratulations: "おめでとうございます！",
+                    allCardsCleared: "すべてのカードをクリアしました！",
+                    totalMoves: "総移動数: ",
+                    finalScore: "最終スコア: ",
+                    playAgain: "もう一度プレイ",
+                    ok: "OK",
+                    languageSelection: "言語選択"
+                },
+                zh: {
+                    gameTitle: "像素纸牌",
+                    moves: "移动: ",
+                    score: "分数: ",
+                    highScore: "最高分: ",
+                    time: "时间: ",
+                    completedSets: "完成组: ",
+                    hintsUsed: "使用提示: ",
+                    hintTooltip: "点击显示可能的移动。突出显示要移动的牌及其目的地。",
+                    undo: "撤消",
+                    autoComplete: "自动完成",
+                    newGame: "新游戏",
+                    difficultySelection: "选择难度",
+                    easy: "简单 (1花色)",
+                    normal: "普通 (2花色)",
+                    hard: "困难 (4花色)",
+                    stockEmpty: "空",
+                    dealsLeft: "剩余发牌: ",
+                    cannotDealEmptyPile: "牌堆为空时不能发新牌。",
+                    noMoreHints: "没有更多提示了。",
+                    noPossibleMoves: "没有更多可能的移动了！检查牌堆。",
+                    hintDealStock: "从牌堆发10张牌！",
+                    hintMoveCard: "将{rank}{suit}（牌堆{sourcePile}的{rank}）移动到牌堆{destPile}。",
+                    undoLimit: "无法再撤消。",
+                    autoCompleteStockNotEmpty: "牌堆有牌时无法自动完成。",
+                    autoCompleteCardsDown: "所有牌都必须面朝上才能自动完成。",
+                    noAutoCompleteSets: "未找到可自动完成的牌组。",
+                    congratulations: "恭喜！",
+                    allCardsCleared: "所有牌都已清理！",
+                    totalMoves: "总移动次数: ",
+                    finalScore: "最终分数: ",
+                    playAgain: "再玩一次",
+                    ok: "确定",
+                    languageSelection: "选择语言"
+                }
+            };
+
+            // 배경 및 카드 색상 팔레트
             const colorPalettes = [
                 {
                     body: '#0d2f1c', // Original Dark Green
@@ -311,21 +562,77 @@
                 complete: new Tone.PluckSynth().toDestination(),
                 win: new Tone.Synth({ oscillator: { type: "sawtooth" }, envelope: { attack: 0.1, decay: 0.4, sustain: 0.5, release: 1 } }).toDestination(),
                 hint: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.1 } }).toDestination(),
+                undo: new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.05, release: 0.1 } }).toDestination(),
+                autoComplete: new Tone.Synth({ oscillator: { type: 'fmsine' }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 0.2 } }).toDestination(),
             };
 
+            // --- 언어 설정 함수 ---
+            function setLanguage(lang) {
+                currentLanguage = lang;
+                console.log(`언어 설정됨: ${currentLanguage}`);
+
+                // 모든 UI 텍스트 업데이트
+                langSelectTitle.textContent = translations[currentLanguage].languageSelection; // 언어 선택 모달 타이틀
+                document.getElementById('lang-ko-btn').textContent = "한국어";
+                document.getElementById('lang-en-btn').textContent = "English";
+                document.getElementById('lang-ja-btn').textContent = "日本語";
+                document.getElementById('lang-zh-btn').textContent = "中文";
+
+                gameTitleEl.textContent = translations[currentLanguage].gameTitle;
+                movesLabelEl.textContent = translations[currentLanguage].moves;
+                scoreLabelEl.textContent = translations[currentLanguage].score;
+                highScoreLabelEl.textContent = translations[currentLanguage].highScore;
+                timeLabelEl.textContent = translations[currentLanguage].time;
+                completedSetsLabelEl.textContent = translations[currentLanguage].completedSets;
+                hintsUsedLabelEl.textContent = translations[currentLanguage].hintsUsed;
+                hintTooltipTextEl.textContent = translations[currentLanguage].hintTooltip;
+                undoBtn.textContent = translations[currentLanguage].undo;
+                autoCompleteBtn.textContent = translations[currentLanguage].autoComplete;
+                newGameBtn.textContent = translations[currentLanguage].newGame;
+
+                difficultySelectTitle.textContent = translations[currentLanguage].difficultySelection;
+                difficulty1SuitBtn.textContent = translations[currentLanguage].easy;
+                difficulty2SuitsBtn.textContent = translations[currentLanguage].normal;
+                difficulty4SuitsBtn.textContent = translations[currentLanguage].hard;
+
+                congratulationsTextEl.textContent = translations[currentLanguage].congratulations;
+                allCardsClearedTextEl.textContent = translations[currentLanguage].allCardsCleared;
+                totalMovesLabelEl.textContent = translations[currentLanguage].totalMoves;
+                finalScoreLabelEl.textContent = translations[currentLanguage].finalScore;
+                playAgainBtn.textContent = translations[currentLanguage].playAgain;
+                alertCloseBtn.textContent = translations[currentLanguage].ok;
+
+
+                languageSelectionModal.style.display = 'none'; // 언어 선택 모달 숨기기
+                difficultySelectionModal.style.display = 'flex'; // 난이도 선택 모달 표시
+            }
+
             // --- 게임 초기화 함수 ---
-            function initGame() {
+            function initGame(numSuits) {
+                // 난이도 설정
+                currentNumSuits = numSuits;
+                difficultySelectionModal.style.display = 'none'; // 난이도 선택 모달 숨기기
+
+                // 게임 상태 초기화
                 deck = [];
                 tableauPiles = Array.from({ length: 10 }, () => []);
                 stock = [];
                 moves = 0;
                 completedSets = 0;
-                hintsLeft = 3; // 힌트 횟수 초기화
+                hintsUsed = 0;
                 selectedStack = null;
-                winMessageEl.style.display = 'none';
-                alertMessageEl.style.display = 'none'; // 게임 시작 시 알림 메시지 숨김
+                gameHistory = [];
+                currentScore = 0;
 
-                // 게임 초기화 시 배경색 및 카드 색상 팔레트를 무작위로 변경
+                winMessageEl.style.display = 'none';
+                alertMessageEl.style.display = 'none';
+
+                // 타이머 초기화
+                stopTimer();
+                timer = 0;
+                updateTimerDisplay();
+
+                // 배경색 및 카드 색상 팔레트 무작위 변경
                 const randomPalette = colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
                 document.documentElement.style.setProperty('--body-bg-color', randomPalette.body);
                 document.documentElement.style.setProperty('--card-back-color', randomPalette.cardBack);
@@ -334,14 +641,19 @@
                 document.documentElement.style.setProperty('--card-face-up-text', randomPalette.cardFaceUpText);
                 console.log(`게임 배경 및 카드 색상 변경: 배경=${randomPalette.body}, 카드뒷면=${randomPalette.cardBack}`);
 
-                for (let i = 0; i < 8; i++) {
-                    for (let rank of RANKS) {
-                        deck.push({ suit: SUITS[0], rank, value: RANKS.indexOf(rank) + 1, faceUp: false });
+                // 덱 생성 (선택된 numSuits에 따라 문양 사용)
+                const activeSuits = ALL_SUITS.slice(0, numSuits);
+                for (let i = 0; i < 8 / numSuits; i++) { // 각 문양 덱이 8개씩 만들어지도록 총 덱 크기 조절
+                    for (let suit of activeSuits) {
+                        for (let rank of RANKS) {
+                            deck.push({ suit: suit, rank, value: RANKS.indexOf(rank) + 1, faceUp: false });
+                        }
                     }
                 }
                 
                 shuffle(deck);
 
+                // 테이블로 필드에 카드 분배
                 for (let i = 0; i < 10; i++) {
                     const cardsToDeal = i < 4 ? 6 : 5;
                     for (let j = 0; j < cardsToDeal; j++) {
@@ -352,13 +664,18 @@
                     }
                 }
 
+                // 남은 카드 재고로 이동 (10장씩 묶음)
                 while(deck.length > 0) {
                     stock.push(deck.splice(0, 10));
                 }
                 
                 render();
+                saveGameState();
+                startTimer();
+                loadHighScore();
             }
 
+            // 배열 섞기 함수 (피셔-예이츠 셔플)
             function shuffle(array) {
                 for (let i = array.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
@@ -386,35 +703,50 @@
                     gameBoard.appendChild(pileEl);
                 });
 
+                // 재고 카드 렌더링
                 stockContainer.innerHTML = '';
                 if (stock.length > 0) {
                     const stockCountEl = document.createElement('div');
-                    stockCountEl.textContent = `남은 딜: ${stock.length}`;
+                    stockCountEl.textContent = `${translations[currentLanguage].dealsLeft}${stock.length}`;
                     stockContainer.appendChild(stockCountEl);
                     const cardBack = document.createElement('div');
                     cardBack.className = 'card face-down';
                     stockContainer.appendChild(cardBack);
                 } else {
-                    stockContainer.textContent = '비었음';
+                    stockContainer.textContent = translations[currentLanguage].stockEmpty;
                     stockContainer.style.cursor = 'default';
                 }
 
+                // UI 업데이트
                 movesCountEl.textContent = moves;
                 completedSetsCountEl.textContent = `${completedSets} / 8`;
-                hintsLeftCountEl.textContent = hintsLeft;
-                hintBtn.disabled = hintsLeft <= 0;
-                hintBtn.style.opacity = hintsLeft <= 0 ? 0.5 : 1;
+                hintsUsedCountEl.textContent = hintsUsed;
+                hintBtn.disabled = false;
+                hintBtn.style.opacity = 1;
+
+                // 되돌리기 버튼 활성화/비활성화
+                undoBtn.disabled = gameHistory.length <= 1;
+                undoBtn.style.opacity = gameHistory.length <= 1 ? 0.5 : 1;
                 
+                // 자동 완성 버튼 활성화/비활성화
+                autoCompleteBtn.disabled = !(stock.length === 0 && areAllCardsFaceUp());
+                autoCompleteBtn.style.opacity = (stock.length === 0 && areAllCardsFaceUp()) ? 1 : 0.5;
+
+                // 완성된 세트 렌더링
                 foundationContainer.innerHTML = '';
                 for (let i = 0; i < completedSets; i++) {
                     const foundationPileEl = document.createElement('div');
                     foundationPileEl.className = 'foundation-pile';
-                    const cardEl = createCardElement({ suit: SUITS[0], rank: 'K', faceUp: true });
+                    const cardEl = createCardElement({ suit: ALL_SUITS[0], rank: 'K', value: 13, faceUp: true }); 
                     foundationPileEl.appendChild(cardEl);
                     foundationContainer.appendChild(foundationPileEl);
                 }
+
+                calculateScore();
+                updateScoreDisplay();
             }
             
+            // 카드 DOM 요소 생성
             function createCardElement(card, pileIndex, cardIndex) {
                 const cardEl = document.createElement('div');
                 cardEl.className = 'card';
@@ -423,6 +755,10 @@
 
                 if (card.faceUp) {
                     cardEl.classList.add('face-up');
+                    // 하트와 다이아몬드는 빨간색으로 표시
+                    if (card.suit === '♥' || card.suit === '♦') {
+                        cardEl.classList.add('red');
+                    }
                     const rankEl = document.createElement('div');
                     rankEl.className = 'card-rank';
                     rankEl.textContent = card.rank;
@@ -438,27 +774,40 @@
             }
 
             // --- 이벤트 핸들러 ---
+            langKoBtn.addEventListener('click', () => setLanguage('ko'));
+            langEnBtn.addEventListener('click', () => setLanguage('en'));
+            langJaBtn.addEventListener('click', () => setLanguage('ja'));
+            langZhBtn.addEventListener('click', () => setLanguage('zh'));
+
+            difficulty1SuitBtn.addEventListener('click', () => initGame(1));
+            difficulty2SuitsBtn.addEventListener('click', () => initGame(2));
+            difficulty4SuitsBtn.addEventListener('click', () => initGame(4));
+
             gameBoard.addEventListener('click', handleTableauClick);
             stockContainer.addEventListener('click', handleStockClick);
             newGameBtn.addEventListener('click', () => {
                 sounds.click.triggerAttackRelease("C4", "8n");
-                initGame();
+                difficultySelectionModal.style.display = 'flex'; // 새 게임 시 난이도 선택 모달 다시 표시
             });
             playAgainBtn.addEventListener('click', () => {
                 sounds.click.triggerAttackRelease("C4", "8n");
-                initGame();
+                difficultySelectionModal.style.display = 'flex'; // 다시하기 시 난이도 선택 모달 다시 표시
+                winMessageEl.style.display = 'none'; // 승리 메시지 숨기기
             });
             hintBtn.addEventListener('click', handleHintClick);
             alertCloseBtn.addEventListener('click', () => {
                 alertMessageEl.style.display = 'none';
-            }); // 알림 닫기 버튼
+            });
+            undoBtn.addEventListener('click', handleUndoClick);
+            autoCompleteBtn.addEventListener('click', handleAutoCompleteClick);
 
+            // 테이블로 필드 클릭 처리
             function handleTableauClick(e) {
                 const cardEl = e.target.closest('.card.face-up');
                 const pileEl = e.target.closest('.tableau-pile');
 
                 console.log("handleTableauClick - 클릭 이벤트 발생");
-                alertMessageEl.style.display = 'none'; // 카드 클릭 시 힌트 메시지 숨김
+                alertMessageEl.style.display = 'none';
 
                 if (cardEl) {
                     const pileIndex = parseInt(cardEl.dataset.pileIndex);
@@ -507,9 +856,10 @@
                 }
             }
 
+            // 재고 카드 클릭 처리
             function handleStockClick() {
                 console.log("handleStockClick - 재고 클릭 이벤트 발생");
-                alertMessageEl.style.display = 'none'; // 재고 클릭 시 힌트 메시지 숨김
+                alertMessageEl.style.display = 'none';
                 if (stock.length === 0) {
                     console.log("handleStockClick - 재고가 비어있음.");
                     return;
@@ -517,7 +867,7 @@
 
                 if (tableauPiles.some(pile => pile.length === 0)) {
                     console.log("handleStockClick - 빈 더미가 있어 카드를 받을 수 없음.");
-                    showAlert("카드를 놓을 빈 공간이 있으면 새 카드를 받을 수 없습니다.");
+                    showAlert(translations[currentLanguage].cannotDealEmptyPile);
                     sounds.error.triggerAttackRelease("C2", "8n");
                     return;
                 }
@@ -533,6 +883,7 @@
                 
                 incrementMoves();
                 deselectStack();
+                saveGameState();
                 render();
                 
                 for(let i=0; i < 10; i++){
@@ -542,6 +893,7 @@
             
             // --- 게임 로직 및 힌트 함수 ---
 
+            // 알림 메시지 표시
             function showAlert(message, isHint = false) {
                 console.log("showAlert - 메시지 표시:", message, " (isHint:", isHint, ")");
                 alertTextEl.textContent = message;
@@ -557,40 +909,41 @@
                 }
             }
 
+            // 힌트 버튼 클릭 처리
             function handleHintClick() {
-                console.log("handleHintClick - 힌트 버튼 클릭됨. 남은 힌트:", hintsLeft);
-                alertMessageEl.style.display = 'none'; // 힌트 버튼 누르면 이전 메시지 숨김
-
-                if (hintsLeft <= 0) {
-                    console.log("handleHintClick - 남은 힌트 없음.");
-                    showAlert("더 이상 힌트를 사용할 수 없습니다.", false);
-                    return;
-                }
+                console.log("handleHintClick - 힌트 버튼 클릭됨.");
+                alertMessageEl.style.display = 'none';
 
                 sounds.hint.triggerAttackRelease("A4", "8n");
                 const hint = findHint();
                 console.log("handleHintClick - 찾은 힌트:", hint);
 
                 if (hint) {
-                    hintsLeft--;
+                    hintsUsed++;
                     showHint(hint);
-                    render(); // 힌트 카운트 업데이트
-                    console.log("handleHintClick - 힌트 표시 및 카운트 감소.");
+                    render();
+                    console.log("handleHintClick - 힌트 표시 및 카운트 증가.");
 
                     let hintMessage = "";
                     if (hint.fromStock) {
-                        hintMessage = "재고에서 카드 10장을 분배하세요!";
+                        hintMessage = translations[currentLanguage].hintDealStock;
                     } else {
                         const sourceCard = tableauPiles[hint.sourcePileIndex][hint.sourceCardIndex];
-                        hintMessage = `${sourceCard.rank}${sourceCard.suit} (Pile ${hint.sourcePileIndex + 1}의 ${sourceCard.rank})을(를) Pile ${hint.destPileIndex + 1}로 이동하세요.`;
+                        // Placeholder를 {rank}, {suit}, {sourcePile}, {destPile}로 대체
+                        hintMessage = translations[currentLanguage].hintMoveCard
+                            .replace('{rank}', sourceCard.rank)
+                            .replace('{suit}', sourceCard.suit)
+                            .replace('{sourcePile}', hint.sourcePileIndex + 1)
+                            .replace('{destPile}', hint.destPileIndex + 1);
                     }
-                    showAlert(hintMessage, true); // 힌트 메시지 표시 (isHint = true로 설정)
+                    showAlert(hintMessage, true);
                 } else {
-                    showAlert("더 이상 움직일 수 있는 카드가 없습니다! 재고를 확인하세요.", false);
+                    showAlert(translations[currentLanguage].noPossibleMoves, false);
                     console.log("handleHintClick - 움직일 수 있는 힌트 없음.");
                 }
             }
             
+            // 이동 가능한 힌트 찾기
             function findHint() {
                 console.log("findHint - 힌트 탐색 시작.");
                 for (let sourcePileIndex = 0; sourcePileIndex < tableauPiles.length; sourcePileIndex++) {
@@ -619,18 +972,19 @@
                             if (sourcePileIndex === destPileIndex) continue;
 
                             const destPile = tableauPiles[destPileIndex];
+                            // 스파이더 솔리테어 이동 규칙: 대상 더미가 비어있거나, 이동하려는 스택의 맨 위 카드가
+                            // 대상 더미의 맨 위 카드보다 정확히 1 작은 값이어야 함. (문양은 상관 없음)
                             const canMove = (destPile.length === 0) || (movingCard.value === destPile[destPile.length - 1].value - 1);
 
                             if (canMove) {
                                 console.log(`findHint - 힌트 발견: From Pile ${sourcePileIndex}, Card ${sourceCardIndex} to Pile ${destPileIndex}`);
                                 return { sourcePileIndex, sourceCardIndex, destPileIndex };
-                            } else {
-                                console.log(`findHint - Pile ${sourcePileIndex}, Card ${sourceCardIndex} -> Pile ${destPileIndex}로 이동 불가능. (대상: ${destPile.length > 0 ? destPile[destPile.length - 1].rank + destPile[destPile.length - 1].suit : 'EMPTY'})`);
                             }
                         }
                     }
                 }
 
+                // 재고 카드 힌트 찾기
                 if (stock.length > 0 && !tableauPiles.some(p => p.length === 0)) {
                     console.log("findHint - 재고 카드 분배 힌트 발견.");
                     return { fromStock: true };
@@ -640,9 +994,10 @@
                 return null;
             }
 
+            // 힌트 시각적으로 표시
             function showHint(hint) {
                 console.log("showHint - 힌트 표시 시작:", hint);
-                const HINT_DURATION = 3000; // 힌트 표시 시간 (3초)
+                const HINT_DURATION = 3000;
 
                 if (hint.fromStock) {
                     stockContainer.classList.add('hint-target');
@@ -679,7 +1034,6 @@
                     }
                     if (destPileEl) {
                         destPileEl.classList.remove('hint-target');
-                        // tableauPile[destPileIndex]는 전역 변수가 아니므로 tableauPiles[destPileIndex]로 변경
                         if(tableauPiles[destPileIndex] && tableauPiles[destPileIndex].length > 0){
                            destPileEl.lastChild.classList.remove('hint-target');
                         }
@@ -688,6 +1042,7 @@
                 }, HINT_DURATION);
             }
 
+            // 이동 가능한 카드 스택 가져오기 (문양 일치 여부 확인 포함)
             function getDraggableStack(pileIndex, cardIndex) {
                 console.log(`getDraggableStack - 호출됨: Pile ${pileIndex}, Card ${cardIndex}`);
                 const pile = tableauPiles[pileIndex];
@@ -699,6 +1054,7 @@
                 const stackCards = [];
                 const stackElements = [];
                 let currentExpectedValue = pile[cardIndex].value;
+                let currentExpectedSuit = pile[cardIndex].suit;
 
                 stackCards.push(pile[cardIndex]);
                 const initialCardEl = document.querySelector(`.card[data-pile-index='${pileIndex}'][data-card-index='${cardIndex}']`);
@@ -708,21 +1064,23 @@
 
                 for (let i = cardIndex + 1; i < pile.length; i++) {
                     const currentCard = pile[i];
-                    if (currentCard.faceUp && currentCard.value === currentExpectedValue - 1) {
+                    // 앞면 카드이며, 값은 1 작아야 하고, 문양은 같아야 한다. (스택 이동의 유효성)
+                    if (currentCard.faceUp && currentCard.value === currentExpectedValue - 1 && currentCard.suit === currentExpectedSuit) {
                         stackCards.push(currentCard);
                         const cardEl = document.querySelector(`.card[data-pile-index='${pileIndex}'][data-card-index='${i}']`);
                         if(cardEl) stackElements.push(cardEl);
                         currentExpectedValue = currentCard.value;
                         console.log(`getDraggableStack - 스택에 카드 추가: ${currentCard.rank}${currentCard.suit}`);
                     } else {
-                        console.log(`getDraggableStack - 시퀀스 끊김 또는 카드 뒤집힘: ${currentCard.rank}${currentCard.suit} (값: ${currentCard.value}, 예상값: ${currentExpectedValue - 1})`);
-                        break;
+                        console.log(`getDraggableStack - 시퀀스 끊김 또는 카드 뒤집힘/문양 불일치: ${currentCard.rank}${currentCard.suit} (값: ${currentCard.value}, 예상값: ${currentExpectedValue - 1}, 문양: ${currentCard.suit}, 예상 문양: ${currentExpectedSuit})`);
+                        break; // 유효한 스택이 아니므로 중단
                     }
                 }
                 console.log("getDraggableStack - 반환 스택:", stackCards);
                 return { cards: stackCards, elements: stackElements };
             }
 
+            // 스택 선택
             function selectStack(pileIndex, cardIndex, elements) {
                 console.log(`selectStack - 스택 선택: Pile ${pileIndex}, Card ${cardIndex}`);
                 deselectStack();
@@ -730,6 +1088,7 @@
                 elements.forEach(el => el.classList.add('selected'));
             }
 
+            // 스택 선택 해제
             function deselectStack() {
                 if (selectedStack) {
                     console.log("deselectStack - 스택 선택 해제.");
@@ -738,9 +1097,10 @@
                 }
             }
 
+            // 스택 이동
             function moveStack(destPileIndex) {
                 console.log(`moveStack - 이동 시도: Dest Pile ${destPileIndex}`);
-                alertMessageEl.style.display = 'none'; // 이동 시도 시 힌트 메시지 숨김
+                alertMessageEl.style.display = 'none';
                 if (!selectedStack) {
                     console.log("moveStack - 선택된 스택이 없음.");
                     return;
@@ -751,8 +1111,11 @@
                 const destPile = tableauPiles[destPileIndex];
                 const movingStack = sourcePile.slice(sourceCardIndex);
                 
+                // 이동 규칙: 대상 더미가 비어있거나, 이동하려는 스택의 맨 위 카드가
+                // 대상 더미의 맨 위 카드보다 정확히 1 작은 값이어야 함. (문양은 상관 없음)
                 const canMove = destPile.length === 0 || 
                                (destPile.length > 0 && movingStack[0].value === destPile[destPile.length - 1].value - 1);
+                
                 console.log(`moveStack - 이동 가능 여부: ${canMove}`);
                 console.log(`moveStack - 이동하려는 카드: ${movingStack[0].rank}${movingStack[0].suit}`);
                 console.log(`moveStack - 대상 더미 맨 위 카드: ${destPile.length > 0 ? destPile[destPile.length - 1].rank + destPile[destPile.length - 1].suit : 'EMPTY'}`);
@@ -763,6 +1126,7 @@
                     const movedCards = sourcePile.splice(sourceCardIndex, movingStack.length);
                     tableauPiles[destPileIndex].push(...movedCards);
 
+                    // 원본 더미의 맨 위 카드가 뒤집혀 있었다면 앞면으로 뒤집기
                     if (sourcePile.length > 0 && !sourcePile[sourcePile.length - 1].faceUp) {
                         sourcePile[sourcePile.length - 1].faceUp = true;
                         console.log(`moveStack - Source Pile ${sourcePileIndex}의 맨 위 카드 뒤집음.`);
@@ -771,6 +1135,7 @@
                     sounds.move.triggerAttackRelease("G4", "8n");
                     incrementMoves();
                     deselectStack();
+                    saveGameState();
                     render();
                     
                     checkForCompleteSet(destPileIndex);
@@ -783,12 +1148,14 @@
                 }
             }
             
+            // 움직임 횟수 증가
             function incrementMoves() {
                 moves++;
                 movesCountEl.textContent = moves;
                 console.log("incrementMoves - 움직임 횟수 증가:", moves);
             }
 
+            // 완성 세트 확인
             function checkForCompleteSet(pileIndex) {
                 console.log(`checkForCompleteSet - 완성 세트 확인: Pile ${pileIndex}`);
                 const pile = tableauPiles[pileIndex];
@@ -803,12 +1170,16 @@
                     return;
                 }
 
-                let expectedValue = 1;
+                let expectedValue = 1; // 에이스부터 킹까지 (1부터 13)
                 let isComplete = true;
+                // 스파이더 솔리테어에서 세트 완성 조건: K부터 A까지 같은 문양의 연속된 시퀀스
+                const suitToCheck = pile[pile.length - 13].suit; // K의 문양을 기준으로 검사
+
                 for (let i = pile.length - 1; i >= pile.length - 13; i--) {
-                    if (pile[i].value !== expectedValue || !pile[i].faceUp) {
+                    // 순서가 맞지 않거나, 뒤집힌 카드이거나, 문양이 다르면 완성 세트가 아님
+                    if (pile[i].value !== expectedValue || !pile[i].faceUp || pile[i].suit !== suitToCheck) {
                         isComplete = false;
-                        console.log(`checkForCompleteSet - 순서 불일치 또는 뒤집힌 카드 발견: ${pile[i].rank}${pile[i].suit} (값: ${pile[i].value}, 예상값: ${expectedValue}, 뒤집힘: ${!pile[i].faceUp})`);
+                        console.log(`checkForCompleteSet - 순서/문양 불일치 또는 뒤집힌 카드 발견: ${pile[i].rank}${pile[i].suit} (값: ${pile[i].value}, 예상값: ${expectedValue}, 문양: ${pile[i].suit}, 예상 문양: ${suitToCheck}, 뒤집힘: ${!pile[i].faceUp})`);
                         break;
                     }
                     expectedValue++;
@@ -833,20 +1204,184 @@
                 }
             }
             
+            // 승리 조건 확인
             function checkForWin() {
                 console.log("checkForWin - 승리 조건 확인. 완성 세트:", completedSets);
                 if (completedSets === 8) {
+                    stopTimer();
+                    calculateScore();
+                    saveHighScore(currentScore);
                     sounds.win.triggerAttackRelease("G5", "1n");
                     finalMovesEl.textContent = moves;
+                    finalScoreEl.textContent = currentScore;
                     winMessageEl.style.display = 'block';
-                    console.log("checkForWin - 게임 승리! 최종 움직임:", moves);
+                    console.log("checkForWin - 게임 승리! 최종 움직임:", moves, " 최종 점수:", currentScore);
                 }
             }
 
+            // --- 게임 상태 저장 및 로드 (되돌리기 기능) ---
+            function saveGameState() {
+                const state = {
+                    tableauPiles: JSON.parse(JSON.stringify(tableauPiles)),
+                    stock: JSON.parse(JSON.stringify(stock)),
+                    moves: moves,
+                    completedSets: completedSets,
+                    hintsUsed: hintsUsed,
+                };
+                gameHistory.push(state);
+                if (gameHistory.length > 50) {
+                    gameHistory.shift();
+                }
+                render();
+                console.log("saveGameState - 게임 상태 저장됨. 현재 기록 수:", gameHistory.length);
+            }
+
+            function handleUndoClick() {
+                console.log("handleUndoClick - 되돌리기 버튼 클릭됨.");
+                if (gameHistory.length > 1) {
+                    sounds.undo.triggerAttackRelease("D4", "8n");
+                    gameHistory.pop();
+                    const prevState = gameHistory[gameHistory.length - 1];
+
+                    tableauPiles = JSON.parse(JSON.stringify(prevState.tableauPiles));
+                    stock = JSON.parse(JSON.stringify(prevState.stock));
+                    moves = prevState.moves;
+                    completedSets = prevState.completedSets;
+                    hintsUsed = prevState.hintsUsed;
+
+                    deselectStack();
+                    render();
+                    console.log("handleUndoClick - 이전 상태로 되돌림. 남은 기록 수:", gameHistory.length);
+                } else {
+                    sounds.error.triggerAttackRelease("C2", "8n");
+                    showAlert(translations[currentLanguage].undoLimit);
+                    console.log("handleUndoClick - 되돌릴 기록이 충분하지 않음.");
+                }
+            }
+
+            // --- 자동 완성 기능 ---
+            function areAllCardsFaceUp() {
+                return tableauPiles.every(pile => pile.every(card => card.faceUp));
+            }
+
+            function handleAutoCompleteClick() {
+                console.log("handleAutoCompleteClick - 자동 완성 버튼 클릭됨.");
+                if (stock.length > 0) {
+                    showAlert(translations[currentLanguage].autoCompleteStockNotEmpty);
+                    sounds.error.triggerAttackRelease("C2", "8n");
+                    return;
+                }
+                if (!areAllCardsFaceUp()) {
+                    showAlert(translations[currentLanguage].autoCompleteCardsDown);
+                    sounds.error.triggerAttackRelease("C2", "8n");
+                    return;
+                }
+
+                sounds.autoComplete.triggerAttackRelease("G5", "8n");
+                console.log("handleAutoCompleteClick - 자동 완성 시작.");
+                let setsCompletedInAutoComplete = 0;
+                let changed = true;
+                while (changed) {
+                    changed = false;
+                    for (let i = 0; i < tableauPiles.length; i++) {
+                        const pile = tableauPiles[i];
+                        if (pile.length >= 13) {
+                            let isSequence = true;
+                            let expectedVal = 1;
+                            const suitToCheck = pile[pile.length - 13].suit;
+                            for (let k = pile.length - 1; k >= pile.length - 13; k--) {
+                                if (pile[k].value !== expectedVal || pile[k].suit !== suitToCheck) {
+                                    isSequence = false;
+                                    break;
+                                }
+                                expectedVal++;
+                            }
+                            if (isSequence) {
+                                pile.splice(pile.length - 13, 13);
+                                completedSets++;
+                                setsCompletedInAutoComplete++;
+                                changed = true;
+                                console.log(`자동 완성: Pile ${i}에서 세트 완료. 현재 완료 세트: ${completedSets}`);
+                            }
+                        }
+                    }
+                }
+
+                if (setsCompletedInAutoComplete > 0) {
+                    render();
+                    checkForWin();
+                } else {
+                    showAlert(translations[currentLanguage].noAutoCompleteSets);
+                    sounds.error.triggerAttackRelease("C2", "8n");
+                }
+            }
+
+            // --- 타이머 기능 ---
+            function startTimer() {
+                if (timerInterval) return;
+                timerInterval = setInterval(() => {
+                    timer++;
+                    updateTimerDisplay();
+                }, 1000);
+                console.log("startTimer - 타이머 시작.");
+            }
+
+            function stopTimer() {
+                if (timerInterval) {
+                    clearInterval(timerInterval);
+                    timerInterval = null;
+                    console.log("stopTimer - 타이머 중지.");
+                }
+            }
+
+            function updateTimerDisplay() {
+                const minutes = Math.floor(timer / 60);
+                const seconds = timer % 60;
+                timerDisplayEl.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            }
+
+            // --- 점수 시스템 ---
+            function calculateScore() {
+                currentScore = Math.max(0, 5000 + (completedSets * 1000) - (moves * 10) - timer - (hintsUsed * 50));
+                updateScoreDisplay();
+            }
+
+            function updateScoreDisplay() {
+                currentScoreEl.textContent = currentScore;
+            }
+
+            // --- 최고 점수 (Local Storage) ---
+            function loadHighScore() {
+                const storedHighScore = localStorage.getItem('spiderSolitaireHighScore');
+                if (storedHighScore) {
+                    highScore = parseInt(storedHighScore, 10);
+                } else {
+                    highScore = 0;
+                }
+                updateHighScoreDisplay();
+                console.log("loadHighScore - 최고 점수 로드됨:", highScore);
+            }
+
+            function saveHighScore(score) {
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('spiderSolitaireHighScore', highScore);
+                    updateHighScoreDisplay();
+                    console.log("saveHighScore - 새로운 최고 점수 저장됨:", highScore);
+                } else {
+                    console.log("saveHighScore - 최고 점수 업데이트 안됨. 현재 점수:", score, " 최고 점수:", highScore);
+                }
+            }
+
+            function updateHighScoreDisplay() {
+                highScoreEl.textContent = highScore;
+            }
+
             // --- 게임 시작 ---
-            console.log("게임 초기화 중...");
-            initGame();
-            console.log("게임 초기화 완료.");
+            // 페이지 로드 시 언어 선택 모달 표시
+            console.log("게임 초기화 전: 언어 선택 모달 표시.");
+            languageSelectionModal.style.display = 'flex';
+            loadHighScore(); // 최고 점수는 먼저 로드
         });
     </script>
 </body>
